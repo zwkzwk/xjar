@@ -20,16 +20,16 @@ import java.util.zip.Deflater;
 public class XJarDecryptor extends XEntryDecryptor<JarArchiveEntry> implements XDecryptor, XConstants {
     private final int level;
 
-    public XJarDecryptor(XDecryptor xEncryptor) {
-        this(xEncryptor, new XJarAllEntryFilter());
+    public XJarDecryptor(XDecryptor xDecryptor) {
+        this(xDecryptor, new XJarAllEntryFilter());
     }
 
     public XJarDecryptor(XDecryptor xDecryptor, XEntryFilter<JarArchiveEntry> filter) {
-        this(xDecryptor, Deflater.DEFLATED, filter);
+        this(xDecryptor, Deflater.DEFAULT_COMPRESSION, filter);
     }
 
-    public XJarDecryptor(XDecryptor xEncryptor, int level) {
-        this(xEncryptor, level, new XJarAllEntryFilter());
+    public XJarDecryptor(XDecryptor xDecryptor, int level) {
+        this(xDecryptor, level, new XJarAllEntryFilter());
     }
 
     public XJarDecryptor(XDecryptor xDecryptor, int level, XEntryFilter<JarArchiveEntry> filter) {
@@ -77,7 +77,6 @@ public class XJarDecryptor extends XEntryDecryptor<JarArchiveEntry> implements X
                         attributes.putValue("Main-Class", mainClass);
                         attributes.remove(new Attributes.Name("Jar-Main-Class"));
                     }
-                    XKit.removeKey(attributes);
                     JarArchiveEntry jarArchiveEntry = new JarArchiveEntry(entry.getName());
                     jarArchiveEntry.setTime(entry.getTime());
                     zos.putArchiveEntry(jarArchiveEntry);
@@ -102,4 +101,34 @@ public class XJarDecryptor extends XEntryDecryptor<JarArchiveEntry> implements X
         }
     }
 
+    /**
+     * 断言输入的jar是否有entry需要被解密
+     *
+     * @param jar jar
+     * @return 有: {@code true} 没有: {@code false}
+     * @throws IOException I/O 异常
+     */
+    public boolean predicate(InputStream jar) throws IOException {
+        JarArchiveInputStream zis = null;
+        try {
+            zis = new JarArchiveInputStream(jar);
+            JarArchiveEntry entry;
+            while ((entry = zis.getNextJarEntry()) != null) {
+                if (entry.getName().startsWith(XJAR_SRC_DIR)
+                        || entry.getName().endsWith(XJAR_INF_DIR)
+                        || entry.getName().endsWith(XJAR_INF_DIR + XJAR_INF_IDX)
+                        || entry.isDirectory()
+                        || entry.getName().equals(META_INF_MANIFEST)
+                ) {
+                    continue;
+                }
+                if (filtrate(entry)) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            XKit.close(zis);
+        }
+    }
 }

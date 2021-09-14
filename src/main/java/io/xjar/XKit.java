@@ -10,13 +10,13 @@ import io.xjar.key.XSymmetricSecureKey;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.jar.Attributes;
 
 /**
  * XJar 工具类，包含I/O，密钥，过滤器的工具方法。
@@ -65,6 +65,19 @@ public abstract class XKit implements XConstants {
         out.write(line);
         out.write('\r');
         out.write('\n');
+    }
+
+    public static byte[] read(InputStream in) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        transfer(in, bos);
+        return bos.toByteArray();
+    }
+
+    public static void write(OutputStream out, byte[] data) throws IOException {
+        if (data == null) {
+            return;
+        }
+        out.write(data);
     }
 
     /**
@@ -219,31 +232,6 @@ public abstract class XKit implements XConstants {
      * 根据密码生成密钥
      *
      * @param algorithm 密钥算法
-     * @param password  密码
-     * @return 密钥
-     * @throws NoSuchAlgorithmException 没有该密钥算法
-     */
-    public static XKey key(String algorithm, String password) throws NoSuchAlgorithmException {
-        return key(algorithm, DEFAULT_KEYSIZE, DEFAULT_IVSIZE, password);
-    }
-
-    /**
-     * 根据密码生成密钥
-     *
-     * @param algorithm 密钥算法
-     * @param keysize   密钥长度
-     * @param password  密码
-     * @return 密钥
-     * @throws NoSuchAlgorithmException 没有该密钥算法
-     */
-    public static XKey key(String algorithm, int keysize, String password) throws NoSuchAlgorithmException {
-        return key(algorithm, keysize, DEFAULT_IVSIZE, password);
-    }
-
-    /**
-     * 根据密码生成密钥
-     *
-     * @param algorithm 密钥算法
      * @param keysize   密钥长度
      * @param ivsize    向量长度
      * @param password  密码
@@ -252,7 +240,7 @@ public abstract class XKit implements XConstants {
      */
     public static XKey key(String algorithm, int keysize, int ivsize, String password) throws NoSuchAlgorithmException {
         MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
-        byte[] seed = sha512.digest(password.getBytes());
+        byte[] seed = sha512.digest(password.getBytes(StandardCharsets.UTF_8));
         KeyGenerator generator = KeyGenerator.getInstance(algorithm.split("[/]")[0]);
         XSecureRandom random = new XSecureRandom(seed);
         generator.init(keysize, random);
@@ -260,20 +248,6 @@ public abstract class XKit implements XConstants {
         generator.init(ivsize, random);
         SecretKey iv = generator.generateKey();
         return new XSymmetricSecureKey(algorithm, keysize, ivsize, password, key.getEncoded(), iv.getEncoded());
-    }
-
-    public static void retainKey(XKey key, Attributes attributes) {
-        attributes.putValue(XJAR_ALGORITHM_KEY, key.getAlgorithm());
-        attributes.putValue(XJAR_KEYSIZE_KEY, String.valueOf(key.getKeysize()));
-        attributes.putValue(XJAR_IVSIZE_KEY, String.valueOf(key.getIvsize()));
-        attributes.putValue(XJAR_PASSWORD_KEY, key.getPassword());
-    }
-
-    public static void removeKey(Attributes attributes) {
-        attributes.remove(new Attributes.Name(XJAR_ALGORITHM_KEY));
-        attributes.remove(new Attributes.Name(XJAR_KEYSIZE_KEY));
-        attributes.remove(new Attributes.Name(XJAR_IVSIZE_KEY));
-        attributes.remove(new Attributes.Name(XJAR_PASSWORD_KEY));
     }
 
     /**
@@ -386,6 +360,35 @@ public abstract class XKit implements XConstants {
 
     public static String normalize(String path) {
         return path.replaceAll("[/\\\\]+", "/");
+    }
+
+    public static byte[] md5(File file) throws IOException {
+        try {
+            return hash(file, MessageDigest.getInstance("MD5"));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public static byte[] sha1(File file) throws IOException {
+        try {
+            return hash(file, MessageDigest.getInstance("SHA-1"));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public static byte[] hash(File file, MessageDigest hash) throws IOException {
+        try (
+                FileInputStream fis = new FileInputStream(file)
+        ) {
+            byte[] buf = new byte[8 * 1024];
+            int len;
+            while ((len = fis.read(buf)) != -1) {
+                hash.update(buf, 0, len);
+            }
+            return hash.digest();
+        }
     }
 
 }

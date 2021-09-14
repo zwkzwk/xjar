@@ -24,16 +24,16 @@ import java.util.zip.Deflater;
 public class XBootDecryptor extends XEntryDecryptor<JarArchiveEntry> implements XDecryptor, XConstants {
     private final int level;
 
-    public XBootDecryptor(XDecryptor xEncryptor) {
-        this(xEncryptor, new XJarAllEntryFilter());
+    public XBootDecryptor(XDecryptor xDecryptor) {
+        this(xDecryptor, new XJarAllEntryFilter());
     }
 
     public XBootDecryptor(XDecryptor xDecryptor, XEntryFilter<JarArchiveEntry> filter) {
-        this(xDecryptor, Deflater.DEFLATED, filter);
+        this(xDecryptor, Deflater.DEFAULT_COMPRESSION, filter);
     }
 
-    public XBootDecryptor(XDecryptor xEncryptor, int level) {
-        this(xEncryptor, level, new XJarAllEntryFilter());
+    public XBootDecryptor(XDecryptor xDecryptor, int level) {
+        this(xDecryptor, level, new XJarAllEntryFilter());
     }
 
     public XBootDecryptor(XDecryptor xDecryptor, int level, XEntryFilter<JarArchiveEntry> filter) {
@@ -85,7 +85,6 @@ public class XBootDecryptor extends XEntryDecryptor<JarArchiveEntry> implements 
                         attributes.putValue("Main-Class", mainClass);
                         attributes.remove(new Attributes.Name("Boot-Main-Class"));
                     }
-                    XKit.removeKey(attributes);
                     JarArchiveEntry jarArchiveEntry = new JarArchiveEntry(entry.getName());
                     jarArchiveEntry.setTime(entry.getTime());
                     zos.putArchiveEntry(jarArchiveEntry);
@@ -105,17 +104,31 @@ public class XBootDecryptor extends XEntryDecryptor<JarArchiveEntry> implements 
                 }
                 // BOOT-INF/lib/**
                 else if (entry.getName().startsWith(BOOT_INF_LIB)) {
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    CheckedOutputStream cos = new CheckedOutputStream(bos, new CRC32());
-                    xJarDecryptor.decrypt(key, nis, cos);
-                    JarArchiveEntry jar = new JarArchiveEntry(entry.getName());
-                    jar.setMethod(JarArchiveEntry.STORED);
-                    jar.setSize(bos.size());
-                    jar.setTime(entry.getTime());
-                    jar.setCrc(cos.getChecksum().getValue());
-                    zos.putArchiveEntry(jar);
-                    ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-                    XKit.transfer(bis, nos);
+                    byte[] data = XKit.read(nis);
+                    ByteArrayInputStream lib = new ByteArrayInputStream(data);
+                    boolean need = xJarDecryptor.predicate(lib);
+                    lib.reset();
+                    if (need) {
+                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        CheckedOutputStream cos = new CheckedOutputStream(bos, new CRC32());
+                        xJarDecryptor.decrypt(key, lib, cos);
+                        JarArchiveEntry jarArchiveEntry = new JarArchiveEntry(entry.getName());
+                        jarArchiveEntry.setMethod(JarArchiveEntry.STORED);
+                        jarArchiveEntry.setSize(bos.size());
+                        jarArchiveEntry.setTime(entry.getTime());
+                        jarArchiveEntry.setCrc(cos.getChecksum().getValue());
+                        zos.putArchiveEntry(jarArchiveEntry);
+                        ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
+                        XKit.transfer(bis, nos);
+                    } else {
+                        JarArchiveEntry jarArchiveEntry = new JarArchiveEntry(entry.getName());
+                        jarArchiveEntry.setMethod(JarArchiveEntry.STORED);
+                        jarArchiveEntry.setSize(entry.getSize());
+                        jarArchiveEntry.setTime(entry.getTime());
+                        jarArchiveEntry.setCrc(entry.getCrc());
+                        zos.putArchiveEntry(jarArchiveEntry);
+                        XKit.transfer(lib, nos);
+                    }
                 }
                 // OTHER
                 else {

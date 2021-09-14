@@ -5,6 +5,7 @@ import io.xjar.key.XKey;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 
@@ -15,11 +16,6 @@ import java.io.*;
  * 2018/11/22 14:01
  */
 public class XJdkDecryptor implements XDecryptor {
-    private final String algorithm;
-
-    public XJdkDecryptor(String algorithm) {
-        this.algorithm = algorithm;
-    }
 
     @Override
     public void decrypt(XKey key, File src, File dest) throws IOException {
@@ -38,8 +34,9 @@ public class XJdkDecryptor implements XDecryptor {
     public void decrypt(XKey key, InputStream in, OutputStream out) throws IOException {
         CipherInputStream cis = null;
         try {
+            String algorithm = key.getAlgorithm();
             Cipher cipher = Cipher.getInstance(algorithm);
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm));
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm.split("[/]")[0]), new IvParameterSpec(key.getIvParameter()));
             cis = new CipherInputStream(in, cipher);
             XKit.transfer(cis, out);
         } catch (Exception e) {
@@ -52,8 +49,9 @@ public class XJdkDecryptor implements XDecryptor {
     @Override
     public InputStream decrypt(XKey key, InputStream in) throws IOException {
         try {
+            String algorithm = key.getAlgorithm();
             Cipher cipher = Cipher.getInstance(algorithm);
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm));
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm.split("[/]")[0]), new IvParameterSpec(key.getIvParameter()));
             return new CipherInputStream(in, cipher);
         } catch (Exception e) {
             throw new IOException(e);
@@ -63,8 +61,9 @@ public class XJdkDecryptor implements XDecryptor {
     @Override
     public OutputStream decrypt(XKey key, OutputStream out) throws IOException {
         try {
+            String algorithm = key.getAlgorithm();
             Cipher cipher = Cipher.getInstance(algorithm);
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm));
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getDecryptKey(), algorithm.split("[/]")[0]), new IvParameterSpec(key.getIvParameter()));
             return new CipherOutputStream(out, cipher);
         } catch (Exception e) {
             throw new IOException(e);
